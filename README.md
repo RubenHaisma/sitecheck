@@ -1,5 +1,9 @@
 # sitecheck
 
+[![ci](https://github.com/RubenHaisma/sitecheck/actions/workflows/ci.yml/badge.svg)](https://github.com/RubenHaisma/sitecheck/actions/workflows/ci.yml)
+[![python](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
+[![license](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE)
+
 **Is your medical-ML result measuring biology, or the lab that produced the data?**
 
 `sitecheck` answers that in one command. It probes how much of the submitting hospital
@@ -8,7 +12,7 @@ identity alone, and how far performance moves when the test hospital is unseen â
 gives a verdict you can gate CI on.
 
 ```bash
-pip install sitecheck
+pip install git+https://github.com/RubenHaisma/sitecheck   # not on PyPI yet
 
 sitecheck audit cohort.parquet \
   --features embedding --layer -1 \
