@@ -1,0 +1,53 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv sync --extra dev
+      - name: lint
+        run: uv run ruff check src tests scripts
+      - name: format check
+        run: uv run ruff format --check src tests scripts
+      - name: doctor (json must be valid + exit 0)
+        run: uv run sitecheck doctor --json
+      - name: tests
+        run: uv run pytest
+
+      # ── signature touches: CI doesn't just check the code, it proves the
+      #    decision rule still reaches the right verdict and keeps docs honest ──
+      - name: verdicts on cohorts with known-correct answers
+        run: uv run sitecheck demo --json
+      - name: --strict exits 2 on an untrustworthy verdict
+        run: |
+          uv run python - <<'PY'
+          import subprocess, sys
+          # A cohort where the outcome is a property of the hospital must fail the gate.
+          code = subprocess.run(
+              [sys.executable, "-c",
+               "from sitecheck import audit\n"
+               "from sitecheck.synthetic import make_confounded\n"
+               "r = audit(*make_confounded())\n"
+               "raise SystemExit(2 if r.verdict == 'CONFOUNDED' else 1)"]
+          ).returncode
+          assert code == 2, f"expected the gate to trip, got exit {code}"
+          print("ok: gate trips on a confounded cohort")
+          PY
+      - name: README stays consistent with the code
+        run: uv run python scripts/test_readme.py
+      - name: publish demo verdicts to the run summary
+        run: |
+          {
+            echo '### sitecheck demo'
+            echo '```'
+            uv run sitecheck demo 2>&1 | tail -20
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
