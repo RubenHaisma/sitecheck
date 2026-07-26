@@ -19,7 +19,6 @@ import sys
 from pathlib import Path
 
 from typer.main import get_command
-from typer.testing import CliRunner
 
 from sitecheck.audit import MIN_MATERIAL_DROP, MIN_SITE_N, SITE_ONLY_AUC_CONFOUNDED
 from sitecheck.cli import app
@@ -56,7 +55,19 @@ check(f"{MIN_SITE_N}" in README, f"minimum site size {MIN_SITE_N}")
 print("cli invocations in the README parse")
 click_cmd = get_command(app)
 known = set(click_cmd.commands)
-runner = CliRunner()
+
+
+def declared_options(subcommand: str) -> set[str]:
+    """Every option string the subcommand accepts.
+
+    Read off the click parameters rather than the rendered `--help` text: help output
+    wraps at the terminal width and renders differently without a TTY, so grepping it
+    passes locally and fails in CI.
+    """
+    cmd = click_cmd.commands[subcommand]
+    return {opt for p in cmd.params for opt in (*p.opts, *p.secondary_opts)}
+
+
 for block in re.findall(r"```bash\n(.*?)```", README, re.S):
     joined = re.sub(r"\\\n\s*", " ", block)
     for line in joined.splitlines():
@@ -67,10 +78,9 @@ for block in re.findall(r"```bash\n(.*?)```", README, re.S):
         if not argv or argv[0] not in known:
             check(False, f"unknown subcommand: {line}")
             continue
-        # --help proves the flags exist without needing the user's data file.
-        res = runner.invoke(app, [argv[0], "--help"])
-        unknown = [a for a in argv[1:] if a.startswith("--") and a.split("=")[0] not in res.stdout]
-        check(not unknown, f"{argv[0]}: flags exist {argv[1:] and unknown or ''} <- {line}")
+        opts = declared_options(argv[0])
+        unknown = [a for a in argv[1:] if a.startswith("--") and a.split("=")[0] not in opts]
+        check(not unknown, f"{argv[0]}: flags exist{f' (missing {unknown})' if unknown else ''}")
 
 if CASE_STUDY_DATA.exists():
     print("tcga case-study table matches the code")
